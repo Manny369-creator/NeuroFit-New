@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroFit - Entrenamiento Cerebral Biométrico</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+</head>
+<body class="bg-gray-900 text-white text-center flex flex-col items-center p-8">
+
+    <h1 class="text-3xl font-bold mb-4">NeuroFit: Optimiza tu Mente</h1>
+
+    <!-- Video de la cámara -->
+    <video id="video" autoplay playsinline class="w-64 h-48 border-4 border-blue-500 rounded-lg"></video>
+
+    <!-- Botón para conectar con sensor de frecuencia cardíaca -->
+    <button id="connectHeartRate" class="mt-4 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700">
+        Conectar Sensor Cardíaco
+    </button>
+    <p id="heartRate" class="mt-2 text-lg">Frecuencia Cardíaca: -- BPM</p>
+
+    <!-- Indicador de estrés -->
+    <p id="stressLevel" class="mt-4 text-xl font-semibold"></p>
+
+    <!-- Historial de sesiones -->
+    <p id="sessionCount" class="mt-4 text-lg"></p>
+
+    <!-- Botón para iniciar sesión de entrenamiento -->
+    <button id="startSession" class="mt-4 px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700">
+        Iniciar Entrenamiento
+    </button>
+
+    <!-- Recomendaciones al usuario -->
+    <p id="recommendation" class="mt-4 text-lg font-semibold"></p>
+
+    <script>
+        // Activar la cámara y analizar expresiones con BlazeFace (TensorFlow.js)
+        async function startFaceDetection() {
+            const video = document.getElementById("video");
+            const model = await blazeface.load();
+
+            // Acceder a la cámara
+            navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+                video.srcObject = stream;
+            });
+
+            async function detectFace() {
+                const predictions = await model.estimateFaces(video, false);
+                let stressIndicator = document.getElementById("stressLevel");
+                let recommendation = document.getElementById("recommendation");
+
+                if (predictions.length > 0) {
+                    stressIndicator.innerText = "😟 Estrés detectado. Relájate antes de continuar.";
+                    recommendation.innerText = "Recomendación: Haz 5 minutos de respiración profunda o camina un poco.";
+                } else {
+                    stressIndicator.innerText = "😊 Relajado y listo para entrenar.";
+                    recommendation.innerText = "Recomendación: Sigue con tu entrenamiento cognitivo.";
+                }
+                requestAnimationFrame(detectFace);
+            }
+            detectFace();
+        }
+        startFaceDetection();
+
+        // Conectar con sensor de frecuencia cardíaca por Bluetooth
+        document.getElementById("connectHeartRate").addEventListener("click", async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ["heart_rate"]
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService("heart_rate");
+                const characteristic = await service.getCharacteristic("heart_rate_measurement");
+
+                characteristic.addEventListener("characteristicvaluechanged", event => {
+                    let heartRate = event.target.value.getUint8(1);
+                    document.getElementById("heartRate").innerText = `Frecuencia Cardíaca: ${heartRate} BPM`;
+                    
+                    if (heartRate > 100) {
+                        document.getElementById("recommendation").innerText = "⚠️ Ritmo cardíaco alto. Tómate un descanso.";
+                    }
+                });
+
+                await characteristic.startNotifications();
+                document.getElementById("heartRate").innerText = "Conectado, midiendo...";
+            } catch (error) {
+                alert("Error conectando sensor cardíaco");
+            }
+        });
+
+        // Historial de sesiones y límite de entrenamientos
+        function trackSessions() {
+            let sessions = localStorage.getItem("neurofit_sessions") || 0;
+            sessions = parseInt(sessions) + 1;
+            localStorage.setItem("neurofit_sessions", sessions);
+
+            let sessionText = document.getElementById("sessionCount");
+            sessionText.innerText = `Sesiones realizadas hoy: ${sessions}/3`;
+
+            if (sessions > 3) {
+                document.getElementById("recommendation").innerText = "🚨 Ya superaste el límite recomendado. Descansa tu mente.";
+            }
+        }
+
+        document.getElementById("startSession").addEventListener("click", () => {
+            trackSessions();
+            alert("Iniciando entrenamiento...");
+        });
+
+        // Mostrar el número de sesiones al cargar la página
+        document.addEventListener("DOMContentLoaded", () => {
+            let sessions = localStorage.getItem("neurofit_sessions") || 0;
+            document.getElementById("sessionCount").innerText = `Sesiones realizadas hoy: ${sessions}/3`;
+        });
+    </script>
+
+</body>
+</html>
